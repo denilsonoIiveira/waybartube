@@ -2190,7 +2190,7 @@ int main(int argc, char **argv) {
     gtk_event_box_set_visible_window(GTK_EVENT_BOX(card_guard_evbox), FALSE);
     gtk_widget_set_halign(card_guard_evbox, GTK_ALIGN_START);
     gtk_widget_set_valign(card_guard_evbox, GTK_ALIGN_END);
-    gtk_widget_set_margin_start(card_guard_evbox, 15);
+    gtk_widget_set_margin_start(card_guard_evbox, 155);
     gtk_widget_set_margin_bottom(card_guard_evbox, 10);
     g_signal_connect(card_guard_evbox, "button-press-event", G_CALLBACK(on_card_guard_button_press), NULL);
 
