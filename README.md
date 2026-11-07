@@ -23,6 +23,8 @@ Cliente nativo de **YouTube Music** para **Waybar** (Wayland / Hyprland), desenv
   - **`󰀄 Conta`**: Importação automática de sessão/cookies do navegador (*Firefox*, *Zen Browser*, *Chrome*, *Brave*, *Chromium*) com 1 clique ou colagem manual de *Request Headers*.
 - **Persistência Automática**:
   - A última música, posição da timeline, fila de reprodução, volume e modo de repetição ficam salvos em `~/.config/waybar-ytmusic/player_state.json`.
+- **Temas de Cores (8 Paletas Prontas + Tema Customizado)**:
+  - Seletor em tempo real na aba **`󰏘 Config`** com sincronização automática das cores no popup e na Waybar (`~/.config/waybar-ytmusic/theme.json`).
 
 ---
 
@@ -202,13 +204,39 @@ bindl = , XF86AudioPrev,  exec, ~/dev/waybar-ytmusic/ytmusic_ctl.py media-prev
 
 ---
 
-## 🛠️ Comandos Úteis via CLI (`ytmusic_ctl.py`)
+## 🎨 5. Temas de Cores
+
+Na aba **`󰏘 Config`** do player, você pode alternar em tempo real entre **8 temas integrados**:
+
+1. **🌊 Catppuccin Ciano** *(Padrão — `#74c7ec`)*
+2. **🔴 YouTube Music** *(Vermelho oficial — `#ff4e45`)*
+3. **🟣 Catppuccin Roxo** *(Mauve — `#cba6f7`)*
+4. **🌃 Tokyo Night** *(Azul Neon — `#7aa2f7`)*
+5. **🧛 Dracula Rosa** *(Rosa/Vampiro — `#ff79c6`)*
+6. **🟢 Emerald / Spotify** *(Verde Esmeralda — `#1ed760`)*
+7. **🟠 Gruvbox Âmbar** *(Dourado/Âmbar — `#fabd2f`)*
+8. **❄️ Nord Ártico** *(Azul Gelo — `#88c0d0`)*
+
+O tema selecionado é salvo em `~/.config/waybar-ytmusic/theme.json`. Para usar cores personalizadas, defina `"theme": "custom"` nesse arquivo e edite os valores hexadecimais (`bg_main`, `bg_card`, `bg_btn`, `text_main`, `text_sub`, `accent`, `accent_hover`, `accent_rgba`, `artist_color`).
+
+---
+
+## 🛠️ 6. Comandos Úteis via CLI (`ytmusic_ctl.py`)
 
 ```bash
-./ytmusic_ctl.py status        # Exibe JSON com o estado atual da reprodução
-./ytmusic_ctl.py toggle        # Play / Pause
-./ytmusic_ctl.py next          # Próxima música
-./ytmusic_ctl.py prev          # Música anterior
-./ytmusic_ctl.py vol-up        # Aumenta o volume em +5%
-./ytmusic_ctl.py vol-down      # Diminui o volume em -5%
+./ytmusic_ctl.py status             # Exibe JSON com o estado atual da reprodução
+./ytmusic_ctl.py toggle             # Play / Pause
+./ytmusic_ctl.py next               # Próxima música
+./ytmusic_ctl.py prev               # Música anterior
+./ytmusic_ctl.py vol-up             # Aumenta o volume em +5%
+./ytmusic_ctl.py vol-down           # Diminui o volume em -5%
+./ytmusic_ctl.py sync-waybar-theme  # Sincroniza o tema atual com o style.css da Waybar
 ```
+
+---
+
+## 🔄 7. Fluxo de Desenvolvimento & Git
+
+- Repositório remoto: `git@github.com:denilsonoIiveira/waybartube.git` (branch `main`).
+- **Regra de versionamento**: A cada alteração realizada no projeto, o assistente/desenvolvedor deve **sempre perguntar antes se pode fazer o commit e subir (`git push`) as alterações para o Git**.
+
