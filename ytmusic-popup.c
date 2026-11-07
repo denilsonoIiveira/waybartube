@@ -1837,7 +1837,7 @@ static void set_expanded_mode(gboolean expand) {
             set_image_from_path(GTK_IMAGE(app.cover_img), app.current_cover_path, 56);
         }
         gtk_widget_hide(app.expanded_box);
-        gtk_widget_set_size_request(app.main_box, 460, -1);
+        gtk_widget_set_size_request(app.main_box, 510, -1);
     }
 }
 
@@ -2190,13 +2190,13 @@ int main(int argc, char **argv) {
     gtk_event_box_set_visible_window(GTK_EVENT_BOX(card_guard_evbox), FALSE);
     gtk_widget_set_halign(card_guard_evbox, GTK_ALIGN_START);
     gtk_widget_set_valign(card_guard_evbox, GTK_ALIGN_END);
-    gtk_widget_set_margin_start(card_guard_evbox, 155);
+    gtk_widget_set_margin_start(card_guard_evbox, 265);
     gtk_widget_set_margin_bottom(card_guard_evbox, 10);
     g_signal_connect(card_guard_evbox, "button-press-event", G_CALLBACK(on_card_guard_button_press), NULL);
 
     GtkWidget *main_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
     app.main_box = main_box;
-    gtk_widget_set_size_request(main_box, 460, -1);
+    gtk_widget_set_size_request(main_box, 510, -1);
     gtk_style_context_add_class(gtk_widget_get_style_context(main_box), "main-box");
     gtk_container_add(GTK_CONTAINER(card_guard_evbox), main_box);
     gtk_container_add(GTK_CONTAINER(app.window), card_guard_evbox);
