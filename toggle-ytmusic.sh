@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 if pgrep -x "ytmusic-popup" > /dev/null; then
     pkill -x "ytmusic-popup"
 else
