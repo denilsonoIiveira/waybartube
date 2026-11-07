@@ -100,10 +100,13 @@ typedef struct {
     GtkWidget *lib_playlists_list;
     GtkWidget *lib_history_list;
 
-    /* Account Tab */
+    /* Account & Theme Tab */
     GtkWidget *auth_badge_lbl;
     GtkWidget *auth_msg_lbl;
     GtkWidget *headers_textview;
+    GtkWidget *theme_btns[8];
+    GtkCssProvider *css_provider;
+    char current_theme_id[32];
 
     /* Current Track Cache */
     JsonObject *current_track_obj;
@@ -1925,150 +1928,230 @@ static gboolean on_window_button_press(GtkWidget *widget, GdkEventButton *ev, gp
     return FALSE;
 }
 
-static void apply_css(void) {
-    GtkCssProvider *provider = gtk_css_provider_new();
-    const char *css =
+typedef struct {
+    const char *id;
+    const char *label;
+    const char *bg_main;
+    const char *bg_card;
+    const char *bg_btn;
+    const char *text_main;
+    const char *text_sub;
+    const char *accent;
+    const char *accent_hover;
+    const char *accent_rgba;
+    const char *artist_color;
+} ColorTheme;
+
+#define NUM_THEMES 8
+static const ColorTheme THEMES[NUM_THEMES] = {
+    {
+        "mocha", "🌊 Catppuccin Ciano",
+        "rgba(17, 17, 27, 0.96)", "rgba(24, 24, 37, 0.92)", "rgba(49, 50, 68, 0.85)",
+        "#cdd6f4", "#a6adc8", "#74c7ec", "#89dceb", "116, 199, 236", "#89b4fa"
+    },
+    {
+        "ytmusic", "🔴 YouTube Music",
+        "rgba(15, 15, 15, 0.97)", "rgba(29, 29, 29, 0.94)", "rgba(45, 45, 45, 0.90)",
+        "#ffffff", "#aaaaaa", "#ff4e45", "#ff6e66", "255, 78, 69", "#ff8a84"
+    },
+    {
+        "mauve", "🟣 Catppuccin Roxo",
+        "rgba(17, 17, 27, 0.96)", "rgba(24, 24, 37, 0.92)", "rgba(49, 50, 68, 0.85)",
+        "#cdd6f4", "#bac2de", "#cba6f7", "#d8b9ff", "203, 166, 247", "#b4befe"
+    },
+    {
+        "tokyonight", "🌃 Tokyo Night",
+        "rgba(22, 22, 30, 0.96)", "rgba(26, 27, 38, 0.94)", "rgba(41, 46, 66, 0.88)",
+        "#c0caf5", "#9aa5ce", "#7aa2f7", "#89ddff", "122, 162, 247", "#bb9af7"
+    },
+    {
+        "dracula", "🧛 Dracula Rosa",
+        "rgba(30, 31, 41, 0.96)", "rgba(40, 42, 54, 0.94)", "rgba(68, 71, 90, 0.88)",
+        "#f8f8f2", "#bfbfbf", "#ff79c6", "#ff92d0", "255, 121, 198", "#bd93f9"
+    },
+    {
+        "emerald", "🟢 Emerald / Spotify",
+        "rgba(13, 17, 23, 0.96)", "rgba(22, 27, 34, 0.94)", "rgba(38, 44, 54, 0.88)",
+        "#e6edf3", "#9198a1", "#1ed760", "#3be477", "30, 215, 96", "#58a6ff"
+    },
+    {
+        "gruvbox", "🟠 Gruvbox Âmbar",
+        "rgba(29, 32, 33, 0.97)", "rgba(40, 40, 40, 0.94)", "rgba(60, 56, 54, 0.90)",
+        "#ebdbb2", "#bdae93", "#fabd2f", "#fe8019", "250, 189, 47", "#83a598"
+    },
+    {
+        "nord", "❄️ Nord Ártico",
+        "rgba(36, 41, 51, 0.96)", "rgba(46, 52, 64, 0.94)", "rgba(67, 76, 94, 0.88)",
+        "#eceff4", "#d8dee9", "#88c0d0", "#8fbcbb", "136, 192, 208", "#81a1c1"
+    }
+};
+
+static void get_theme_file_path(char *buf, size_t sz) {
+    const char *home = g_get_home_dir();
+    snprintf(buf, sz, "%s/.config/waybar-ytmusic/theme.json", home ? home : "/tmp");
+}
+
+static void update_theme_buttons_ui(void) {
+    for (int i = 0; i < NUM_THEMES; i++) {
+        if (!app.theme_btns[i]) continue;
+        GtkStyleContext *ctx = gtk_widget_get_style_context(app.theme_btns[i]);
+        if (strcmp(app.current_theme_id, THEMES[i].id) == 0) {
+            gtk_style_context_add_class(ctx, "active-nav-tab");
+        } else {
+            gtk_style_context_remove_class(ctx, "active-nav-tab");
+        }
+    }
+}
+
+static void apply_theme_palette(
+    const char *bg_main,
+    const char *bg_card,
+    const char *bg_btn,
+    const char *text_main,
+    const char *text_sub,
+    const char *accent,
+    const char *accent_hover,
+    const char *accent_rgba,
+    const char *artist_color
+) {
+    if (!app.css_provider) {
+        app.css_provider = gtk_css_provider_new();
+        gtk_style_context_add_provider_for_screen(
+            gdk_screen_get_default(),
+            GTK_STYLE_PROVIDER(app.css_provider),
+            GTK_STYLE_PROVIDER_PRIORITY_APPLICATION
+        );
+    }
+
+    char css[8192];
+    snprintf(css, sizeof(css),
         "window {"
         "  background-color: transparent;"
-        "  color: #cdd6f4;"
+        "  color: %s;"
         "  border: none;"
         "  box-shadow: none;"
         "  font-family: 'JetBrainsMono Nerd Font', sans-serif;"
         "}"
         ".main-box {"
-        "  background-color: rgba(17, 17, 27, 0.96);"
-        "  color: #cdd6f4;"
-        "  border: 2px solid #74c7ec;"
+        "  background-color: %s;"
+        "  color: %s;"
+        "  border: 2px solid %s;"
         "  border-radius: 14px;"
         "  padding: 14px;"
         "}"
         ".player-card {"
-        "  background-color: rgba(24, 24, 37, 0.92);"
-        "  border: 1px solid rgba(116, 199, 236, 0.28);"
+        "  background-color: %s;"
+        "  border: 1px solid rgba(%s, 0.30);"
         "  border-radius: 12px;"
         "  padding: 12px;"
         "}"
         ".song-title {"
         "  font-size: 14px;"
         "  font-weight: bold;"
-        "  color: #cdd6f4;"
+        "  color: %s;"
         "}"
         ".song-artist {"
         "  font-size: 12px;"
-        "  color: #89b4fa;"
+        "  color: %s;"
         "  font-weight: bold;"
         "}"
-        ".song-album {"
+        ".song-album, .time-lbl, .row-sub {"
         "  font-size: 11px;"
-        "  color: #a6adc8;"
-        "}"
-        ".time-lbl {"
-        "  font-size: 11px;"
-        "  color: #a6adc8;"
+        "  color: %s;"
         "}"
         "button {"
         "  background-image: none;"
-        "  background-color: rgba(49, 50, 68, 0.85);"
-        "  color: #cdd6f4;"
-        "  border: 1px solid rgba(116, 199, 236, 0.22);"
+        "  background-color: %s;"
+        "  color: %s;"
+        "  border: 1px solid rgba(%s, 0.24);"
         "  border-radius: 8px;"
         "  padding: 5px 10px;"
         "  font-weight: bold;"
         "  font-size: 12px;"
         "}"
         "button:hover {"
-        "  background-color: #74c7ec;"
+        "  background-color: %s;"
         "  color: #11111b;"
         "}"
         "stackswitcher {"
-        "  background-color: rgba(24, 24, 37, 0.92);"
-        "  border: 1px solid rgba(116, 199, 236, 0.22);"
+        "  background-color: %s;"
+        "  border: 1px solid rgba(%s, 0.24);"
         "  border-radius: 10px;"
         "  padding: 3px;"
         "}"
         "stackswitcher button, .inactive-nav-tab {"
         "  background-color: transparent;"
-        "  color: #a6adc8;"
+        "  color: %s;"
         "  border: 1px solid transparent;"
         "  border-radius: 8px;"
         "  padding: 5px 10px;"
         "}"
         "stackswitcher button:hover, .inactive-nav-tab:hover {"
-        "  background-color: rgba(116, 199, 236, 0.16);"
-        "  color: #cdd6f4;"
+        "  background-color: rgba(%s, 0.18);"
+        "  color: %s;"
         "}"
         "stackswitcher button:checked, stackswitcher button:active, .active-nav-tab {"
-        "  background-color: #74c7ec;"
+        "  background-color: %s;"
         "  color: #11111b;"
-        "  border: 1px solid #89dceb;"
+        "  border: 1px solid %s;"
         "  border-radius: 8px;"
         "  font-weight: bold;"
         "}"
         ".play-main-btn {"
-        "  background-color: #74c7ec;"
+        "  background-color: %s;"
         "  color: #11111b;"
         "  font-size: 15px;"
         "  padding: 6px 16px;"
         "  border-radius: 10px;"
         "}"
         ".play-main-btn:hover {"
-        "  background-color: #89dceb;"
+        "  background-color: %s;"
         "  color: #11111b;"
         "}"
         ".toggle-on {"
-        "  background-color: rgba(116, 199, 236, 0.28);"
-        "  color: #74c7ec;"
-        "  border-color: #74c7ec;"
+        "  background-color: rgba(%s, 0.28);"
+        "  color: %s;"
+        "  border-color: %s;"
         "}"
         ".liked-btn {"
         "  color: #f38ba8;"
         "  border-color: rgba(243, 139, 168, 0.5);"
         "}"
-        ".close-btn {"
-        "  background-color: rgba(243, 139, 168, 0.2);"
-        "  color: #f38ba8;"
-        "  border-color: rgba(243, 139, 168, 0.4);"
-        "  padding: 4px 9px;"
-        "}"
-        ".close-btn:hover {"
-        "  background-color: #f38ba8;"
-        "  color: #11111b;"
-        "}"
         "entry {"
-        "  background-color: rgba(24, 24, 37, 0.95);"
-        "  color: #cdd6f4;"
-        "  border: 1px solid rgba(116, 199, 236, 0.35);"
+        "  background-color: %s;"
+        "  color: %s;"
+        "  border: 1px solid rgba(%s, 0.35);"
         "  border-radius: 8px;"
         "  padding: 6px 10px;"
         "}"
         "entry:focus {"
-        "  border-color: #74c7ec;"
+        "  border-color: %s;"
         "}"
         "list {"
-        "  background-color: rgba(24, 24, 37, 0.85);"
+        "  background-color: %s;"
         "  border-radius: 10px;"
         "}"
         "row {"
         "  background-color: transparent;"
-        "  border-bottom: 1px solid rgba(49, 50, 68, 0.5);"
+        "  border-bottom: 1px solid rgba(%s, 0.14);"
         "}"
         "row:hover {"
-        "  background-color: rgba(49, 50, 68, 0.45);"
+        "  background-color: rgba(%s, 0.12);"
         "}"
         ".track-row {"
         "  padding: 6px 8px;"
         "}"
         ".active-queue-row {"
-        "  background-color: rgba(116, 199, 236, 0.16);"
-        "  border-left: 3px solid #74c7ec;"
+        "  background-color: rgba(%s, 0.18);"
+        "  border-left: 3px solid %s;"
         "  border-radius: 6px;"
         "}"
         ".drag-grip {"
-        "  color: #6c7086;"
+        "  color: %s;"
         "  font-size: 13px;"
         "}"
         ".dragging-row {"
-        "  background-color: rgba(116, 199, 236, 0.28);"
+        "  background-color: rgba(%s, 0.28);"
         "  border-radius: 6px;"
         "}"
         ".swiping-remove-row {"
@@ -2087,70 +2170,187 @@ static void apply_css(void) {
         "  font-weight: bold;"
         "}"
         ".drop-target-above {"
-        "  border-top: 2px solid #74c7ec;"
-        "  background-color: rgba(116, 199, 236, 0.10);"
+        "  border-top: 2px solid %s;"
+        "  background-color: rgba(%s, 0.12);"
         "}"
         ".drop-target-below {"
-        "  border-bottom: 2px solid #74c7ec;"
-        "  background-color: rgba(116, 199, 236, 0.10);"
+        "  border-bottom: 2px solid %s;"
+        "  background-color: rgba(%s, 0.12);"
         "}"
         ".row-title {"
         "  font-size: 12px;"
         "  font-weight: bold;"
-        "  color: #cdd6f4;"
-        "}"
-        ".row-sub {"
-        "  font-size: 11px;"
-        "  color: #a6adc8;"
+        "  color: %s;"
         "}"
         ".row-btn {"
         "  padding: 3px 8px;"
         "  font-size: 11px;"
         "}"
         ".row-btn-primary {"
-        "  background-color: rgba(116, 199, 236, 0.25);"
-        "  color: #74c7ec;"
-        "  border-color: rgba(116, 199, 236, 0.5);"
+        "  background-color: rgba(%s, 0.25);"
+        "  color: %s;"
+        "  border-color: rgba(%s, 0.50);"
         "  padding: 3px 10px;"
         "}"
         ".row-btn-primary:hover {"
-        "  background-color: #74c7ec;"
+        "  background-color: %s;"
         "  color: #11111b;"
         "}"
         ".section-lbl {"
         "  font-size: 12px;"
         "  font-weight: bold;"
-        "  color: #74c7ec;"
+        "  color: %s;"
         "}"
         "scale contents trough {"
-        "  background-color: rgba(49, 50, 68, 0.9);"
+        "  background-color: %s;"
         "  border-radius: 6px;"
         "  min-height: 6px;"
         "}"
         "scale contents trough highlight {"
-        "  background-color: #74c7ec;"
+        "  background-color: %s;"
         "  border-radius: 6px;"
         "}"
         "scale contents trough slider {"
-        "  background-color: #cdd6f4;"
-        "  border-radius: 50%;"
+        "  background-color: %s;"
+        "  border-radius: 50%%;"
         "  min-width: 12px;"
         "  min-height: 12px;"
         "}"
         "textview, textview text {"
-        "  background-color: rgba(24, 24, 37, 0.95);"
-        "  color: #cdd6f4;"
+        "  background-color: %s;"
+        "  color: %s;"
         "  font-family: monospace;"
         "  font-size: 11px;"
-        "}";
-
-    gtk_css_provider_load_from_data(provider, css, -1, NULL);
-    gtk_style_context_add_provider_for_screen(
-        gdk_screen_get_default(),
-        GTK_STYLE_PROVIDER(provider),
-        GTK_STYLE_PROVIDER_PRIORITY_APPLICATION
+        "}",
+        text_main,
+        bg_main, text_main, accent,
+        bg_card, accent_rgba,
+        text_main,
+        artist_color,
+        text_sub,
+        bg_btn, text_main, accent_rgba,
+        accent,
+        bg_card, accent_rgba,
+        text_sub,
+        accent_rgba, text_main,
+        accent, accent_hover,
+        accent,
+        accent_hover,
+        accent_rgba, accent, accent,
+        bg_card, text_main, accent_rgba,
+        accent,
+        bg_card,
+        accent_rgba,
+        accent_rgba,
+        accent_rgba, accent,
+        text_sub,
+        accent_rgba,
+        accent, accent_rgba,
+        accent, accent_rgba,
+        text_main,
+        accent_rgba, accent, accent_rgba,
+        accent,
+        accent,
+        bg_btn,
+        accent,
+        text_main,
+        bg_card, text_main
     );
-    g_object_unref(provider);
+
+    gtk_css_provider_load_from_data(app.css_provider, css, -1, NULL);
+    update_theme_buttons_ui();
+    update_switcher_active_style();
+}
+
+static void save_theme_to_disk(const ColorTheme *t) {
+    char path[512];
+    get_theme_file_path(path, sizeof(path));
+    char json_buf[2048];
+    snprintf(json_buf, sizeof(json_buf),
+        "{\n"
+        "  \"theme\": \"%s\",\n"
+        "  \"label\": \"%s\",\n"
+        "  \"bg_main\": \"%s\",\n"
+        "  \"bg_card\": \"%s\",\n"
+        "  \"bg_btn\": \"%s\",\n"
+        "  \"text_main\": \"%s\",\n"
+        "  \"text_sub\": \"%s\",\n"
+        "  \"accent\": \"%s\",\n"
+        "  \"accent_hover\": \"%s\",\n"
+        "  \"accent_rgba\": \"%s\",\n"
+        "  \"artist_color\": \"%s\"\n"
+        "}\n",
+        t->id, t->label, t->bg_main, t->bg_card, t->bg_btn,
+        t->text_main, t->text_sub, t->accent, t->accent_hover,
+        t->accent_rgba, t->artist_color
+    );
+    g_file_set_contents(path, json_buf, -1, NULL);
+
+    /* Sync Waybar theme colors in background */
+    char cmd[512];
+    snprintf(cmd, sizeof(cmd), "%s sync-waybar-theme >/dev/null 2>&1 &", CTL_SCRIPT);
+    int r = system(cmd);
+    (void)r;
+}
+
+static void select_theme_by_index(int idx, gboolean save) {
+    if (idx < 0 || idx >= NUM_THEMES) idx = 0;
+    const ColorTheme *t = &THEMES[idx];
+    strncpy(app.current_theme_id, t->id, sizeof(app.current_theme_id) - 1);
+    apply_theme_palette(
+        t->bg_main, t->bg_card, t->bg_btn,
+        t->text_main, t->text_sub,
+        t->accent, t->accent_hover, t->accent_rgba, t->artist_color
+    );
+    if (save) {
+        save_theme_to_disk(t);
+    }
+}
+
+static void on_theme_btn_clicked(GtkButton *btn, gpointer user_data) {
+    (void)btn;
+    int idx = GPOINTER_TO_INT(user_data);
+    select_theme_by_index(idx, TRUE);
+}
+
+static void apply_css(void) {
+    char path[512];
+    get_theme_file_path(path, sizeof(path));
+    if (g_file_test(path, G_FILE_TEST_EXISTS)) {
+        JsonParser *parser = json_parser_new();
+        if (json_parser_load_from_file(parser, path, NULL)) {
+            JsonNode *root = json_parser_get_root(parser);
+            if (root && JSON_NODE_HOLDS_OBJECT(root)) {
+                JsonObject *obj = json_node_get_object(root);
+                const char *tid = j_str(obj, "theme", "mocha");
+                if (strcmp(tid, "custom") == 0) {
+                    strncpy(app.current_theme_id, "custom", sizeof(app.current_theme_id) - 1);
+                    apply_theme_palette(
+                        j_str(obj, "bg_main", THEMES[0].bg_main),
+                        j_str(obj, "bg_card", THEMES[0].bg_card),
+                        j_str(obj, "bg_btn", THEMES[0].bg_btn),
+                        j_str(obj, "text_main", THEMES[0].text_main),
+                        j_str(obj, "text_sub", THEMES[0].text_sub),
+                        j_str(obj, "accent", THEMES[0].accent),
+                        j_str(obj, "accent_hover", THEMES[0].accent_hover),
+                        j_str(obj, "accent_rgba", THEMES[0].accent_rgba),
+                        j_str(obj, "artist_color", THEMES[0].artist_color)
+                    );
+                    g_object_unref(parser);
+                    return;
+                }
+                for (int i = 0; i < NUM_THEMES; i++) {
+                    if (strcmp(tid, THEMES[i].id) == 0) {
+                        select_theme_by_index(i, FALSE);
+                        g_object_unref(parser);
+                        return;
+                    }
+                }
+            }
+        }
+        g_object_unref(parser);
+    }
+    select_theme_by_index(0, TRUE);
 }
 
 int main(int argc, char **argv) {
@@ -2505,11 +2705,35 @@ int main(int argc, char **argv) {
 
     gtk_stack_add_titled(GTK_STACK(app.stack), lib_tab, "library", "󰉋 Biblioteca");
 
-    /* === TAB 5: ACCOUNT === */
-    GtkWidget *acc_tab = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
+    /* === TAB 5: CONFIG (THEMES & ACCOUNT) === */
+    GtkWidget *acc_tab = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
+
+    GtkWidget *theme_title = gtk_label_new("🎨 Tema de Cores (salvo em ~/.config/waybar-ytmusic/theme.json)");
+    gtk_label_set_xalign(GTK_LABEL(theme_title), 0.0f);
+    gtk_style_context_add_class(gtk_widget_get_style_context(theme_title), "section-lbl");
+    gtk_box_pack_start(GTK_BOX(acc_tab), theme_title, FALSE, FALSE, 0);
+
+    GtkWidget *theme_grid = gtk_grid_new();
+    gtk_grid_set_row_spacing(GTK_GRID(theme_grid), 5);
+    gtk_grid_set_column_spacing(GTK_GRID(theme_grid), 6);
+    gtk_grid_set_column_homogeneous(GTK_GRID(theme_grid), TRUE);
+
+    for (int i = 0; i < NUM_THEMES; i++) {
+        GtkWidget *tbtn = gtk_button_new_with_label(THEMES[i].label);
+        app.theme_btns[i] = tbtn;
+        g_signal_connect(tbtn, "clicked", G_CALLBACK(on_theme_btn_clicked), GINT_TO_POINTER(i));
+        gtk_grid_attach(GTK_GRID(theme_grid), tbtn, i % 2, i / 2, 1, 1);
+    }
+    update_theme_buttons_ui();
+    gtk_box_pack_start(GTK_BOX(acc_tab), theme_grid, FALSE, FALSE, 2);
+
+    GtkWidget *acc_title = gtk_label_new("󰀄 Conta do YouTube Music");
+    gtk_label_set_xalign(GTK_LABEL(acc_title), 0.0f);
+    gtk_style_context_add_class(gtk_widget_get_style_context(acc_title), "section-lbl");
+    gtk_box_pack_start(GTK_BOX(acc_tab), acc_title, FALSE, FALSE, 2);
+
     GtkWidget *acc_info = gtk_label_new(
-        "Conecte sua conta do YouTube Music para sincronizar suas playlists\n"
-        "e músicas curtidas na nuvem (ou use sem login com biblioteca local)."
+        "Conecte sua conta para sincronizar playlists e músicas curtidas na nuvem:"
     );
     gtk_label_set_xalign(GTK_LABEL(acc_info), 0.0f);
     gtk_style_context_add_class(gtk_widget_get_style_context(acc_info), "row-sub");
@@ -2553,7 +2777,7 @@ int main(int argc, char **argv) {
     g_signal_connect(btn_save_hdr, "clicked", G_CALLBACK(on_save_headers_clicked), NULL);
     gtk_box_pack_start(GTK_BOX(acc_tab), btn_save_hdr, FALSE, FALSE, 0);
 
-    gtk_stack_add_titled(GTK_STACK(app.stack), acc_tab, "account", "󰀄 Conta");
+    gtk_stack_add_titled(GTK_STACK(app.stack), acc_tab, "account", "󰏘 Config");
 
     g_signal_connect(app.stack, "notify::visible-child-name", G_CALLBACK(on_stack_visible_child_changed), NULL);
     gtk_box_pack_start(GTK_BOX(app.expanded_box), app.stack, TRUE, TRUE, 0);

@@ -18,6 +18,100 @@ SOCKET_PATH = "/tmp/waybar-ytmusic.sock"
 PROJECT_DIR = Path(__file__).resolve().parent
 VENV_PYTHON = PROJECT_DIR / ".venv" / "bin" / "python"
 DAEMON_SCRIPT = PROJECT_DIR / "ytmusic_daemon.py"
+THEME_FILE = Path.home() / ".config" / "waybar-ytmusic" / "theme.json"
+WAYBAR_STYLE_FILE = Path.home() / ".config" / "waybar" / "style.css"
+
+
+def load_theme() -> dict:
+    default = {
+        "theme": "mocha",
+        "accent": "#74c7ec",
+        "accent_hover": "#89dceb",
+        "accent_rgba": "116, 199, 236",
+        "artist_color": "#89b4fa",
+        "text_main": "#cdd6f4",
+        "text_sub": "#a6adc8",
+        "bg_main": "rgba(17, 17, 27, 0.96)",
+    }
+    if THEME_FILE.exists():
+        try:
+            data = json.loads(THEME_FILE.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                default.update(data)
+        except Exception:
+            pass
+    return default
+
+
+def sync_waybar_theme() -> None:
+    if not WAYBAR_STYLE_FILE.exists():
+        return
+    try:
+        t = load_theme()
+        css = WAYBAR_STYLE_FILE.read_text(encoding="utf-8")
+        marker = "#ytmusic {"
+        if marker not in css:
+            return
+        prefix = css.split(marker)[0]
+        new_block = f"""#ytmusic {{
+\tbackground-color: {t.get("bg_main", "rgba(17, 17, 27, 0.78)")};
+\tpadding: 2px 10px;
+\tborder-radius: .5rem;
+\tborder: 1px solid rgba({t.get("accent_rgba", "116, 199, 236")}, 0.45);
+}}
+
+#image.ytmusic-art {{
+\tmargin-right: 6px;
+}}
+
+#custom-ytmusic-prev,
+#custom-ytmusic-play,
+#custom-ytmusic-next {{
+\tcolor: {t.get("text_main", "#cdd6f4")};
+\tpadding: 0 6px;
+\tmargin: 0 1px;
+\tborder-radius: 6px;
+\tfont-size: 13px;
+\ttransition: all 0.15s ease;
+}}
+
+#custom-ytmusic-prev:hover,
+#custom-ytmusic-play:hover,
+#custom-ytmusic-next:hover {{
+\tbackground-color: {t.get("accent", "#74c7ec")};
+\tcolor: #11111b;
+}}
+
+#custom-ytmusic-play.playing {{
+\tcolor: {t.get("accent", "#74c7ec")};
+}}
+
+#custom-ytmusic {{
+\tcolor: {t.get("text_main", "#cdd6f4")};
+\tpadding: 0 6px 0 8px;
+\ttransition: all 0.2s ease;
+}}
+
+#custom-ytmusic:hover {{
+\tcolor: {t.get("accent_hover", "#89dceb")};
+}}
+
+#custom-ytmusic.playing {{
+\tcolor: {t.get("text_main", "#cdd6f4")};
+}}
+
+#custom-ytmusic.paused {{
+\tcolor: #f9e2af;
+}}
+
+#custom-ytmusic.loading {{
+\tcolor: #f38ba8;
+}}
+"""
+        WAYBAR_STYLE_FILE.write_text(prefix + new_block, encoding="utf-8")
+        subprocess.run(["pkill", "-SIGUSR2", "waybar"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
 
 
 def fmt_time(sec: float) -> str:
@@ -149,17 +243,23 @@ def print_waybar_play_btn() -> None:
 
 def print_waybar_json() -> None:
     st = send_cmd({"cmd": "status"}, timeout=0.6, auto_start=True)
+    th = load_theme()
+    acc = th.get("accent", "#74c7ec")
+    acc_hov = th.get("accent_hover", "#89dceb")
+    art_col = th.get("artist_color", "#89b4fa")
+    sub_col = th.get("text_sub", "#a6adc8")
+
     vol_idle = int((st or {}).get("volume") or 80)
     if not st or not st.get("track"):
         out = {
             "text": f"YTMusic  <span color='#6c7086'>00:00 ────── 00:00</span>  <span color='#f9e2af'>󰕾 {vol_idle}%</span>",
             "tooltip": (
                 "<b>󰎆 YouTube Music</b>\n"
-                "<span color='#a6adc8'>Nenhuma música tocando</span>\n\n"
-                "<span color='#74c7ec'>Clique Esquerdo:</span> Abrir Player / Buscar\n"
-                "<span color='#74c7ec'>Clique Meio:</span> Play / Pause\n"
-                "<span color='#74c7ec'>Clique Direito:</span> Próxima faixa\n"
-                "<span color='#74c7ec'>Scroll:</span> Volume"
+                f"<span color='{sub_col}'>Nenhuma música tocando</span>\n\n"
+                f"<span color='{acc}'>Clique Esquerdo:</span> Abrir Player / Buscar\n"
+                f"<span color='{acc}'>Clique Meio:</span> Play / Pause\n"
+                f"<span color='{acc}'>Clique Direito:</span> Próxima faixa\n"
+                f"<span color='{acc}'>Scroll:</span> Volume"
             ),
             "class": "stopped",
             "alt": "stopped",
@@ -190,26 +290,26 @@ def print_waybar_json() -> None:
     heart = " <span color='#f38ba8'>♥</span>" if liked else ""
     short_label = html.escape(truncate(f"{title} • {artist}", 26))
     inline_bar = progress_bar(pos, dur, 8)
-    timeline_str = f"<span color='#89dceb'>{fmt_time(pos)} {inline_bar} {fmt_time(dur)}</span>"
+    timeline_str = f"<span color='{acc_hov}'>{fmt_time(pos)} {inline_bar} {fmt_time(dur)}</span>"
     vol_str = f"<span color='#f9e2af'>󰕾 {vol}%</span>"
     bar_text = f"{short_label}{heart}  {timeline_str}  {vol_str}"
 
     pbar = progress_bar(pos, dur, 18)
     tooltip_lines = [
         f"<b>󰎆 {html.escape(title)}</b>",
-        f"<span color='#89b4fa'>󰠃 {html.escape(artist)}</span>",
+        f"<span color='{art_col}'>󰠃 {html.escape(artist)}</span>",
     ]
     if album:
-        tooltip_lines.append(f"<span color='#a6adc8'>󰀥 {html.escape(album)}</span>")
+        tooltip_lines.append(f"<span color='{sub_col}'>󰀥 {html.escape(album)}</span>")
     tooltip_lines.append("")
     tooltip_lines.append(
-        f"<span color='#74c7ec'>{fmt_time(pos)}</span>  {pbar}  <span color='#74c7ec'>{fmt_time(dur)}</span>"
+        f"<span color='{acc}'>{fmt_time(pos)}</span>  {pbar}  <span color='{acc}'>{fmt_time(dur)}</span>"
     )
     tooltip_lines.append(f"<span color='#f9e2af'>󰕾 Volume: {vol}%</span>")
     if next_track:
         nt_title = html.escape(truncate(next_track.get("title", ""), 30))
         nt_artist = html.escape(truncate(next_track.get("artist", ""), 20))
-        tooltip_lines.append(f"\n<span color='#a6adc8'>󰒭 A seguir: {nt_title} ({nt_artist})</span>")
+        tooltip_lines.append(f"\n<span color='{sub_col}'>󰒭 A seguir: {nt_title} ({nt_artist})</span>")
 
     out = {
         "text": bar_text,
@@ -256,6 +356,8 @@ def main() -> None:
         print(json.dumps(send_cmd({"cmd": "status"}), indent=2, ensure_ascii=False))
     elif action == "start-daemon":
         ensure_daemon_running(wait=True)
+    elif action == "sync-waybar-theme":
+        sync_waybar_theme()
 
 
 if __name__ == "__main__":
